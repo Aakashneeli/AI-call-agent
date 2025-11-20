@@ -1,0 +1,86 @@
+﻿Project Blueprint: "Morning Briefing" AI Voice Agent (Prototype)
+1. Project Overview
+Goal: Build a real-time, low-latency AI Voice Agent capable of initiating a phone call to a specific user (India), injecting context (Weather/Time), and maintaining a casual, two-way conversation.
+Key Constraint: Maximize open-source usage and minimize latency.
+Target Latency: <1000ms (Voice-to-Voice).
+2. Architecture: The "Sandwich" Stack
+We utilize a hybrid approach to balance intelligence speed with synthesis cost/latency.
+Flow:
+Twilio (PSTN) <-> Ngrok <-> FastAPI (Local) <-> Groq API (Cloud) & Piper TTS (Local)
+1. Input: User speaks into the phone.
+2. Transport: Twilio sends raw audio (WebSocket) to Local Python Server.
+3. Transcribe (Ears): Server sends audio chunk to Groq API (Whisper).
+4. Reason (Brain): Server sends text to Groq API (Llama 3).
+5. Synthesize (Mouth): Server pipes text to Piper TTS (Local Binary).
+6. Output: Piper audio is converted to µ-law format and streamed back to Twilio.
+3. Tech Stack Specifications
+Core Components
+* Language: Python 3.10+
+* Server Framework: FastAPI + Uvicorn (for high-performance WebSockets).
+* LLM Inference: Groq API
+   * Model: llama-3.1-8b-instant (Chosen for maximum speed/instant output).
+* Speech-to-Text (STT): Groq API
+   * Model: whisper-large-v3 or distil-whisper.
+* Text-to-Speech (TTS): Piper TTS
+   * Type: Local Executable / Subprocess.
+   * Voice Model: en_US-lessac-medium.onnx (Fast inference).
+* Telephony: Twilio Programmable Voice
+   * Feature: Media Streams (WebSocket).
+   * Audio Format: mulaw / 8000Hz.
+* Data Source: Open-Meteo API (Free, No Key) for Weather.
+Infrastructure
+* Tunneling: Ngrok (To expose localhost port 8000 to Twilio).
+* Hardware: Local Laptop (Mac/Linux/Windows) with CPU inference for TTS.
+4. Development Phases
+Phase 1: "Brain & Mouth" (Local Test)
+* Objective: Validate that Llama 3 (via Groq) and Piper (Local) can generate a response in <500ms.
+* Action: Create a CLI script brain_mouth.py.
+* Input: Typed text in terminal.
+* Output: Audio playback via system speakers.
+* Success Criteria: TTS starts playing within 500ms of receiving the LLM token.
+Phase 2: "The Ears" (Local Loop)
+* Objective: Add Transcription (STT) to create a full voice-loop on the laptop.
+* Action: Update script to local_loop.py.
+* Input: Microphone recording (using sounddevice or pyaudio).
+* Logic: Mic -> Groq Whisper -> Groq Llama -> Piper -> Speakers.
+* Success Criteria: Full conversation flows naturally without "Awkward Silence."
+Phase 3: The Bridge (Twilio Integration)
+* Objective: Connect the Python logic to a real phone call.
+* Action: Create server.py with FastAPI.
+* Crucial Implementation Detail:
+   * Handle Twilio WebSocket events: connected, start, media, stop.
+   * Audio Conversion: Piper generates 22050Hz PCM (16-bit). Twilio requires 8000Hz µ-law. We must implement real-time downsampling and encoding (using audioop or scipy).
+* Success Criteria: You call the Twilio number, and the AI says "Hello."
+Phase 4: "Morning Briefing" Logic
+* Objective: Implement the specific user scenario.
+* Logic:
+   1. Script initiates an Outbound Call to the User.
+   2. On Connect: Fetch Weather (Open-Meteo) for Hyderabad.
+   3. Generate "Warm Up" prompt: "Good morning! It's 7 AM and [Weather Description]. Up for a chat?"
+   4. Enter the Conversation Loop.
+* Indian Context Config:
+   * Twilio Account: Trial.
+   * Caller ID: Verified Indian Mobile Number (+91...).
+   * Twilio Number: US Number (+1...).
+5. Directory Structure
+/project-root
+ ├── /piper                  # Piper executable and onnx models
+ │   ├── piper.exe (or binary)
+ │   ├── en_US-lessac-medium.onnx
+ │   └── en_US-lessac-medium.onnx.json
+ ├── .env                    # API Keys (GROQ_API_KEY, TWILIO_SID, etc.)
+ ├── requirements.txt        # python dependencies
+ ├── brain_mouth.py          # Phase 1 Script
+ ├── server.py               # Main Application (FastAPI)
+ └── utils.py                # Audio conversion helpers
+
+6. Known Constraints & Workarounds
+1. Audio Encoding: Twilio is strict about audio/x-mulaw at 8000Hz. Sending raw PCM will result in static noise. We must use a converter.
+2. Twilio Trial: Can only make outbound calls to Verified Caller IDs. The user must verify their personal number in the Twilio Console first.
+3. Latency: Network latency between India (User) -> US (Twilio) -> India (Localhost) -> US (Groq) will be the bottleneck. Keep payloads small.
+7. Required Environment Variables
+GROQ_API_KEY="gsk_..."
+TWILIO_ACCOUNT_SID="AC..."
+TWILIO_AUTH_TOKEN="..."
+TWILIO_PHONE_NUMBER="+1..."
+MY_PHONE_NUMBER="+91..."

@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+myvenv/
+.env
+
+# Project specific
+faiss_index/
+temp_*.wav
+piper/
+chatbot.log
+ngrok.exe
+ngrok.zip
+
+# User requested
+ingest_dummy.py
+main_dummy.py
+
+# Data & Docs (Keep data folder structure but ignore files)
+Project_plan.txt
+Project_update.pdf
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
